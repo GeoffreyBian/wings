@@ -11,7 +11,7 @@ from model import CNN
 # --------------------
 # Config
 # --------------------
-DATA_DIR = "data"
+DATA_DIR = "more_data"
 BATCH_SIZE = 32
 EPOCHS = 15
 LR = 1e-3
