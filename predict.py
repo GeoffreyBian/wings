@@ -2,10 +2,12 @@ import sys
 import torch
 from torchvision import transforms
 from PIL import Image
+import torch.nn.functional as F
 
 from model import CNN
 
-MODEL_PATH = "bird_cnn_better.pth"
+MODEL_PATH = "bird_cnn_pretrained.pth"
+TOP_K = 5
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # --------------------
@@ -23,8 +25,13 @@ model.eval()
 # Image preprocessing
 # --------------------
 transform = transforms.Compose([
-    transforms.Resize((128, 128)),
-    transforms.ToTensor()
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
 ])
 
 # --------------------
@@ -36,6 +43,10 @@ image = transform(image).unsqueeze(0).to(DEVICE)
 
 with torch.no_grad():
     outputs = model(image)
-    _, pred = torch.max(outputs, 1)
+    probs = F.softmax(outputs, dim=1)
 
-print("Predicted species:", class_names[pred.item()])
+    top_probs, top_idxs = probs.topk(TOP_K, dim=1)
+
+print("\nTop predictions:")
+for prob, idx in zip(top_probs[0], top_idxs[0]):
+    print(f"{class_names[idx]}: {prob.item() * 100:.2f}%")

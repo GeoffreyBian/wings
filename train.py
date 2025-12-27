@@ -61,20 +61,22 @@ val_dataset = ImageFolder(
 assert train_dataset.class_to_idx == val_dataset.class_to_idx, \
     "Class index mismatch between train and validation sets!"
 
+print("Classes:", train_dataset.classes)
+
 train_loader = DataLoader(
     train_dataset,
     batch_size=BATCH_SIZE,
     shuffle=True,
-    num_workers=4,
-    pin_memory=True
+    num_workers=0,        # Windows-safe
+    pin_memory=(DEVICE == "cuda")
 )
 
 val_loader = DataLoader(
     val_dataset,
     batch_size=BATCH_SIZE,
     shuffle=False,
-    num_workers=4,
-    pin_memory=True
+    num_workers=0,
+    pin_memory=(DEVICE == "cuda")
 )
 
 num_classes = len(train_dataset.classes)
@@ -85,14 +87,18 @@ print("Number of classes:", num_classes)
 # --------------------
 model = CNN_Pretrained(num_classes).to(DEVICE)
 
-# Freeze backbone initially
-for param in model.backbone.features.parameters():
+# Freeze entire backbone
+for param in model.parameters():
     param.requires_grad = False
+
+# Unfreeze classifier head
+for param in model.backbone.fc.parameters():
+    param.requires_grad = True
 
 criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
 optimizer = torch.optim.AdamW(
-    model.parameters(),
+    filter(lambda p: p.requires_grad, model.parameters()),
     lr=LR,
     weight_decay=1e-4
 )
@@ -101,7 +107,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=EPOCHS
 )
 
-scaler = torch.cuda.amp.GradScaler()
+scaler = torch.amp.GradScaler('cuda', enabled=(DEVICE == "cuda"))
 
 # --------------------
 # Training Loop
@@ -114,19 +120,25 @@ for epoch in range(EPOCHS):
     correct = 0
     total = 0
 
-    # Unfreeze backbone after warmup
+    # Unfreeze last ResNet block after warmup
     if epoch == 5:
-        print("Unfreezing backbone...")
-        for param in model.backbone.features.parameters():
+        print("Unfreezing backbone layer4...")
+        for param in model.backbone.layer4.parameters():
             param.requires_grad = True
+
+        optimizer = torch.optim.AdamW(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=LR / 10,
+            weight_decay=1e-4
+        )
 
     for images, labels in train_loader:
         images = images.to(DEVICE, non_blocking=True)
         labels = labels.to(DEVICE, non_blocking=True)
 
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
 
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cuda', enabled=(DEVICE == "cuda")):
             outputs = model(images)
             loss = criterion(outputs, labels)
 
@@ -139,8 +151,8 @@ for epoch in range(EPOCHS):
         correct += (preds == labels).sum().item()
         total += labels.size(0)
 
-    train_acc = 100 * correct / total
     train_loss = running_loss / len(train_loader)
+    train_acc = 100.0 * correct / total
 
     # --------------------
     # Validation
@@ -160,8 +172,7 @@ for epoch in range(EPOCHS):
             val_correct += (preds == labels).sum().item()
             val_total += labels.size(0)
 
-    val_acc = 100 * val_correct / val_total
-
+    val_acc = 100.0 * val_correct / val_total
     scheduler.step()
 
     print(
