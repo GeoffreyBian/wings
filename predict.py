@@ -4,7 +4,8 @@ from torchvision import transforms
 from PIL import Image
 import torch.nn.functional as F
 
-from model import CNN
+from pretrained_model import CNN_Pretrained
+
 
 MODEL_PATH = "bird_cnn_pretrained.pth"
 TOP_K = 5
@@ -13,10 +14,14 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # --------------------
 # Load model + classes
 # --------------------
-checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
+checkpoint = torch.load(
+    MODEL_PATH,
+    map_location=DEVICE,
+    weights_only=False
+)
 class_names = checkpoint["class_names"]
 
-model = CNN(num_classes=len(class_names))
+model = CNN_Pretrained(num_classes=len(class_names))
 model.load_state_dict(checkpoint["model_state"])
 model.to(DEVICE)
 model.eval()
