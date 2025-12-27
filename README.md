@@ -145,3 +145,11 @@ This project demonstrates both foundational and modern approaches to image class
 - Applying transfer learning for better real-world performance
 - Using PyTorch best practices for training and inference
 - Together, these models provide a solid introduction to practical computer vision workflows.
+
+---
+
+## Dataset Acknowledgement
+
+This project uses bird species image data for training and evaluation.  
+Huge thanks to the authors and maintainers of the following public dataset repository:
+**[UmairPirzada/BIRDS_SPECIES--IMAGE-CLASSIFICATION](https://github.com/UmairPirzada/BIRDS_SPECIES--IMAGE-CLASSIFICATION)**
